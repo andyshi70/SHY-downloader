@@ -1,0 +1,25 @@
+{
+  "creators": [
+    {
+      "name": "李厂长来了",
+      "platforms": {
+        "douyin": {
+          "url": "https://www.douyin.com/user/MS4wLjABAAAAxxxx",
+          "sec_uid": "MS4wLjABAAAAxxxx"
+        },
+        "bilibili": {
+          "mid": "474455919",
+          "url": "https://space.bilibili.com/474455919/video"
+        }
+      }
+    },
+    {
+      "name": "测试博主",
+      "platforms": {
+        "douyin": {
+          "url": "https://www.douyin.com/user/MS4wLjABAAAAtest"
+        }
+      }
+    }
+  ]
+}
