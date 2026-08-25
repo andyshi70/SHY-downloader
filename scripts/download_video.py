@@ -28,9 +28,9 @@ from urllib.parse import urlparse
 
 import requests
 
-# ── Provider system ──────────────────────────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from providers import detect_provider
+from asr import run_asr
 
 # ── Constants ────────────────────────────────────────────────────────────────
 DEFAULT_OUT_ROOT = Path.home() / "Desktop" / "av" / "chaijie"
@@ -476,6 +476,34 @@ def main(argv=None):
         print(f"  -> failed (yt-dlp not found, no provider)", flush=True)
 
     write_report(out_dir, urls, records)
+
+    # ── ASR 默认转文字（除非 --asr none）────────────────────────────────────
+    if args.asr != "none":
+        for rec in records:
+            if rec.get("status") != "ok":
+                continue
+            for vpath in rec.get("files", []):
+                vpath = Path(vpath)
+                if vpath.suffix.lower() not in VIDEO_EXT:
+                    continue
+                if not vpath.exists():
+                    continue
+                print(f"  [ASR] 转文字: {vpath.name}", flush=True)
+                asr_res = run_asr(
+                    vpath, out_dir,
+                    backend=args.asr,
+                    language=args.asr_language,
+                    prompt=args.asr_prompt or None,
+                )
+                if asr_res.get("transcript_path"):
+                    rec.setdefault("asr", {}).setdefault("transcript", [])
+                    rec["asr"]["transcript"].append(str(asr_res["transcript_path"]))
+                    rec.setdefault("files", []).append(str(asr_res["transcript_path"]))
+                    print(f"    -> {asr_res['transcript_path']}", flush=True)
+                else:
+                    print(f"    -> 跳过: {asr_res.get('error', 'no-transcript')}", flush=True)
+        write_report(out_dir, urls, records)  # 报告补入 ASR 产物
+
     ok = sum(1 for r in records if r["status"] == "ok")
     sk = sum(1 for r in records if r["status"] == "skipped")
     fl = len(records) - ok - sk

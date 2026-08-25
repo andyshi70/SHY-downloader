@@ -487,10 +487,25 @@ def fetch(
         if online_result is not None and online_result.get("video_path"):
             logger.info("[wechat_channels] Online API succeeded!")
             return online_result
-        logger.info("[wechat_channels] Online API failed, falling back to Yuanbao API...")
+        logger.info("[wechat_channels] Online API failed, falling back to next method...")
 
     cookie = os.environ.get("WECHAT_YUANBAO_COOKIE", "")
-    go_binary = os.environ.get("WX_CHANNELS_BINARY", "")
+    go_binary = os.environ.get("WX_CHANNELS_BINARY", "") or _find_go_binary()
+    if not go_binary:
+        go_binary = subprocess.run(["find", os.path.expanduser("~/aigit"), "-maxdepth", "2", "-name", "wx_channels_download", "-type", "f"], capture_output=True, text=True, timeout=10).stdout.strip().split("\n")[0] if False else ""
+
+    # Path 3 (early): Go binary proxy mode — try BEFORE raising cookie error.
+    # This lets Go binary work even without WECHAT_YUANBAO_COOKIE.
+    if not cookie and go_binary:
+        logger.info("[wechat_channels] No Yuanbao cookie; trying Go binary proxy mode first...")
+        try:
+            proxy_result = proxy_fetch(url, output_root, metadata_only=False)
+            if proxy_result and proxy_result.get("video_path"):
+                return proxy_result
+        except Exception as e:
+            logger.warning(f"[wechat_channels] Go binary proxy mode failed: {e}")
+        # Revert system proxy after failed attempt
+        _revert_system_proxy()
 
     # Step 1: Parse the share URL via Yuanbao API
     if not cookie:
@@ -825,6 +840,71 @@ def _get_go_config_path() -> str | None:
 PROXY_API_PORT = 2022  # Go binary's API server port
 PROXY_PORT = 2023  # Go binary's interceptor/proxy port
 PROXY_BASE_URL = f"http://127.0.0.1:{PROXY_API_PORT}"
+_SAVED_PROXY: dict = {}
+
+
+def _save_system_proxy():
+    """Save current system proxy settings (macOS networksetup)."""
+    saved = {}
+    try:
+        for mode in ("webproxy", "socksfirewallproxy"):
+            out = subprocess.run(
+                ["networksetup", "-get" + mode, "Wi-Fi"],
+                capture_output=True, text=True, timeout=5,
+            )
+            saved[mode] = out.stdout.strip()
+    except Exception as e:
+        logger.warning(f"[wechat_channels] Could not save proxy state: {e}")
+    return saved
+
+
+def _restore_system_proxy(saved: dict):
+    """Restore previously saved system proxy settings."""
+    if not saved:
+        return
+    try:
+        for mode, cfg in saved.items():
+            if not cfg:
+                continue
+            lines = cfg.splitlines()
+            enabled = any(l.startswith("Enabled:") and "Yes" in l for l in lines)
+            server = next((l.split(":", 1)[1].strip() for l in lines if l.startswith("Server:")), "")
+            port = next((l.split(":", 1)[1].strip() for l in lines if l.startswith("Port:")), "")
+            cmd = ["networksetup", "-set" + mode, "Wi-Fi", server, port]
+            if enabled:
+                subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                logger.info(f"[wechat_channels] Restored {mode}: {server}:{port}")
+            else:
+                subprocess.run(
+                    ["networksetup", "-set" + mode, "Wi-Fi", "0.0.0.0", "0"],
+                    capture_output=True, text=True, timeout=5,
+                )
+    except Exception as e:
+        logger.warning(f"[wechat_channels] Could not restore proxy: {e}")
+
+
+def _set_system_proxy():
+    """Set macOS system proxy to Go binary's interceptor port."""
+    try:
+        subprocess.run(
+            ["networksetup", "-setwebproxy", "Wi-Fi", "127.0.0.1", str(PROXY_PORT)],
+            capture_output=True, text=True, timeout=5,
+        )
+        subprocess.run(
+            ["networksetup", "-setsocksfirewallproxy", "Wi-Fi", "127.0.0.1", str(PROXY_PORT)],
+            capture_output=True, text=True, timeout=5,
+        )
+        logger.info(f"[wechat_channels] System proxy set to 127.0.0.1:{PROXY_PORT}")
+    except Exception as e:
+        logger.warning(f"[wechat_channels] Could not set proxy: {e}")
+        raise
+
+
+def _revert_system_proxy(saved: dict | None = None):
+    """Revert system proxy to saved state (or disable)."""
+    if saved is None:
+        saved = _SAVED_PROXY
+    _restore_system_proxy(saved)
 
 
 def _start_proxy(
