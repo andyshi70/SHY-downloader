@@ -37,7 +37,7 @@ run_asr(video, out_dir,
 `scripts/asr.py` is a Python module, not a CLI script. Call `run_asr()` via `execute_code`:
 
 ```python
-import sys; sys.path.insert(0, '/Users/evandy/.hermes/skills/SHY-downloader/scripts')
+import sys; sys.path.insert(0, 'scripts')  # 项目根目录下的 scripts/
 from asr import run_asr
 from pathlib import Path
 

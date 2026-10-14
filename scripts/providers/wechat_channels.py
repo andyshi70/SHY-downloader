@@ -466,14 +466,11 @@ def supports(url: str) -> bool:
     )
 
 
-COOKIE_FILE = os.path.expanduser("~/.hermes/secrets/wechat_yuanbao_cookie.txt")
-
-
 def _load_cookie_from_file() -> str:
-    """Load Yuanbao cookie from the persisted cookie file if present."""
+    """Load Yuanbao cookie from a file if WECHAT_YUANBAO_COOKIE_FILE is set."""
     try:
-        path = os.environ.get("WECHAT_YUANBAO_COOKIE_FILE", "") or COOKIE_FILE
-        if os.path.exists(path):
+        path = os.environ.get("WECHAT_YUANBAO_COOKIE_FILE", "")
+        if path and os.path.exists(path):
             cookie = open(path, "r", encoding="utf-8").read().strip()
             if cookie:
                 logger.info(f"[wechat_channels] Loaded Yuanbao cookie from {path}")

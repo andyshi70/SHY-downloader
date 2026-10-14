@@ -105,7 +105,7 @@ def save_archive(archive_path: Path, ids: set) -> None:
 def run_command(args: list, *, timeout: Optional[int] = None, check: bool = True) -> subprocess.CompletedProcess:
     """Run a command with proper env."""
     env = os.environ.copy()
-    env.pop("HERMES_HOME", None)
+    env.pop("OPENCODE_HOME", None)  # 子进程不继承 agent 环境变量
     env["PYTHONIOENCODING"] = "utf-8"
     result = subprocess.run(
         args,

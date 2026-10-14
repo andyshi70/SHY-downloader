@@ -85,7 +85,7 @@ python3 scripts/download_video.py "https://..." --out-root ./downloads
    ```bash
    export WECHAT_YUANBAO_COOKIE="hy_user=xxx; hy_token=xxx; ..."
    ```
-6. 写入 `~/.hermes/.env` 让每次都能用
+6. 把 `export` 写入 shell 配置文件（如 `~/.zshrc`）或当前 agent 的环境变量配置，让每次都能用
 
 ### Path 3: Go Binary Proxy Mode
 
@@ -155,7 +155,7 @@ SHY-downloader/
 │   ├── wechat-channels-manual-fallback.md
 │   ├── douyin-cookie-api-auth.md
 │   └── ...
-└── SKILL.md                   # Hermes Skill 定义
+└── SKILL.md                   # Skill 定义（可被任意 agent 加载）
 ```
 
 ## 输出格式

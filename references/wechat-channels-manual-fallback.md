@@ -82,7 +82,7 @@ kill -TERM <PID>  # 或直接 Ctrl+C
 
 - **Token 差异:** Go binary 的 parse_sph API 返回的 `token` + `sign` 与 Python Yuanbao API 返回的**不同**。base URL 和 encfilekey 一样，只有 token 和 sign 不同。Go binary 的 token 才能下载成功。
 - **CDN 不支持 Range:** 不要用 Go binary 的 `download` 命令下载。它用多线程 Range 请求，CDN 返回 "服务器不支持并发下载"。用 `curl` 或 Python `requests.get(stream=True)` 单线程下载。
-- **Python 版本:** 系统 Python 3.9.6 不支持 `X | Y` 类型提示。用 `/Users/evandy/.hermes/hermes-agent/venv/bin/python3` (3.11)。
+- **Python 版本:** 系统 Python 3.9 不支持 `X | Y` 类型提示（代码用了 `from __future__ import annotations`，3.9 可运行但部分旧环境会报错）。请使用 Python 3.10+。
 
 ## 错误排查
 
