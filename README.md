@@ -172,7 +172,7 @@ SHY-downloader/
 
 ## 注意事项
 
-- **视频号下载前必须先登录腾讯元宝**：网页打开 https://yuanbao.tencent.com 微信扫码登录，再运行下载命令（运行时也会打印此提醒）。零配置在线解析可能失败，失败后需要有效的元宝 Cookie（约 2 个月有效期，过期重新登录获取）：`export WECHAT_YUANBAO_COOKIE="hy_user=...; hy_token=..."` 或写入 `~/.hermes/secrets/wechat_yuanbao_cookie.txt`。**不要把 Cookie 提交进仓库。**
+- **视频号下载前必须先登录腾讯元宝**：网页打开 https://yuanbao.tencent.com 微信扫码登录，再运行下载命令（运行时也会打印此提醒）。零配置在线解析可能失败，失败后需要有效的元宝 Cookie（约 2 个月有效期，过期重新登录获取）：`export WECHAT_YUANBAO_COOKIE="hy_user=...; hy_token=..."`。
 - 视频号链接有时效性，过期后需要重新分享
 - 部分平台需要登录态（Cookie）才能下载
 - 大文件下载请确保磁盘空间充足

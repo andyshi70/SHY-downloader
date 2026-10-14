@@ -66,7 +66,7 @@ python3 scripts/download_video.py "https://..." --out-root ./downloads
 ## 注意事项
 
 - **微信视频号**：下载前会先打印提醒——**请先在网页端登陆腾讯元宝，登陆后再使用此 skill**。代码按序尝试三条路径：① 在线解析 API `sph.litao.workers.dev`（零配置，可能失败）② 元宝 API（需 `WECHAT_YUANBAO_COOKIE`）③ Go binary 代理模式。在线 API 成功时直接下载 MP4；失败且无 Cookie 时报错要求配置。详见 `references/wechat-channels-api.md`。
-- **元宝 Cookie 获取与配置**：浏览器打开 https://yuanbao.tencent.com 微信扫码登录 → DevTools → Application → Cookies → `yuanbao.tencent.com` 复制 Cookie 字符串 → 二选一配置：`export WECHAT_YUANBAO_COOKIE="hy_user=...; hy_token=..."`，或写入 `~/.hermes/secrets/wechat_yuanbao_cookie.txt`。**Cookie 约 2 个月有效期，过期必须重新登录获取；严禁把 Cookie 提交进仓库。**
+- **元宝 Cookie 获取与配置**：浏览器打开 https://yuanbao.tencent.com 微信扫码登录 → DevTools → Application → Cookies → `yuanbao.tencent.com` 复制 Cookie 字符串 → 配置：`export WECHAT_YUANBAO_COOKIE="hy_user=...; hy_token=..."`（或写入文件后 `export WECHAT_YUANBAO_COOKIE_FILE="/path/to/cookie.txt"` 指定）。**Cookie 约 2 个月有效期，过期必须重新登录获取。**
 - **ASR 转文字**：`asr.py` 是 Python 库模块，非 CLI。当前 Whisper 后端**默认模型是 `base`**，zh 场景自动附加中文 topic prompt（改善标点）；追求更高准确率请按 `references/asr-quality.md` 建议改用 `medium`。
 - **Go binary 生命周期**：`terminal` 工具不接受 `&` 后台化，且 `background=true` + `notify` 参数组合受限。**在 `execute_code` 中用 `subprocess.Popen` + `os.setsid` 管理 Go binary**——启动、等待 API、解析、下载、停止全部在同一 `execute_code` 块内完成，避免进程泄露。
 
