@@ -27,9 +27,6 @@
       "**/.tmp/**",
       "**/mock/**",
       "**/mocks/**",
-      "**/tests/**",
-      "**/test/**",
-      "**/test/temp/**",
       "**/backup/**",
       "**/backups/**",
       "**/static/temp/**",
@@ -39,7 +36,6 @@
       "data/*.log",
       "data/*.bak",
       "**/logs/**",
-      "**/docs/**",
       "**/*.bak",
       "**/*.tmp",
       "**/*.old",
@@ -52,7 +48,6 @@
       "dist/**": "deny",
       "build/**": "deny",
       ".git/**": "deny",
-      ".github/**": "deny",
       "cache/**": "deny",
       "tmp/**": "deny"
     }

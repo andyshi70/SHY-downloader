@@ -1,0 +1,23 @@
+debug:
+  error: false
+  echolog: false
+
+download:
+  dir: "~/Desktop/videos"
+  pauseWhenDownload: false
+  playDoneAudio: false
+
+api:
+  protocol: "http"
+  hostname: "127.0.0.1"
+  port: 2022
+
+proxy:
+  system: false
+  hostname: "127.0.0.1"
+  port: 2023
+  tun: false
+  skipInstallRootCert: true
+
+cloudflare:
+  sphCookie: "hy_user=xxx; hy_token=xxx; hy_source=web"

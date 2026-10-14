@@ -15,3 +15,6 @@ opencode.json.bk
 # Python
 __pycache__/
 *.pyc
+
+# Python venv
+.venv/

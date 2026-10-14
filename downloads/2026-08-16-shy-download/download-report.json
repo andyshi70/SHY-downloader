@@ -1,0 +1,18 @@
+{
+  "created_at": "2026-08-16T23:03:33",
+  "out_dir": "downloads/2026-08-16-shy-download",
+  "urls": [
+    "https://weixin.qq.com/sph/AL9h00ZjoS"
+  ],
+  "records": [
+    {
+      "url": "https://weixin.qq.com/sph/AL9h00ZjoS",
+      "kind": "platform",
+      "platform": "yt-dlp",
+      "status": "failed",
+      "files": [],
+      "bytes": 0,
+      "note": "ERROR: Unsupported URL: https://channels.weixin.qq.com/finder-preview/pages/sph?id=AL9h00ZjoS"
+    }
+  ]
+}
