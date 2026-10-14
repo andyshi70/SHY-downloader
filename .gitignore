@@ -18,3 +18,7 @@ __pycache__/
 
 # Python venv
 .venv/
+
+# 本地 agent 配置，不发布
+AGENTS.md
+opencode.json
