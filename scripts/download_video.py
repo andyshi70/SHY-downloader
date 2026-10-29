@@ -467,6 +467,13 @@ def main(argv=None):
                        "files": [], "bytes": 0, "note": str(exc)[:200]}
                 # Fall through to yt-dlp
 
+        # Skip yt-dlp fallback for providers whose URLs yt-dlp cannot handle —
+        # 视频号链接 yt-dlp 必然报 Unsupported URL，只公布 provider 阶段的分类错误
+        if provider and provider.PLATFORM == "wechat_channels":
+            records.append(rec)
+            print(f"  -> {rec['status']} ({provider.PLATFORM}){(' ' + rec.get('note','')) if rec.get('note') else ''}", flush=True)
+            continue
+
         # 3. yt-dlp for everything else
         if ytdlp:
             rec = ytdlp_download(url, out_dir, ytdlp=ytdlp, quality=args.quality,

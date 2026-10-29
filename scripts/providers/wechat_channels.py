@@ -224,7 +224,9 @@ def _parse_share_url(share_url: str, cookie: str) -> dict:
     result = resp.json()
     if result.get("code") != 0:
         raise ValueError(
-            f"Yuanbao API error: code={result.get('code')}, msg={result.get('msg')}"
+            f"元宝解析失败 code={result.get('code')} msg={result.get('msg')}；"
+            "常见原因：元宝 Cookie 失效（重新登录 yuanbao.tencent.com 获取新 Cookie）"
+            "或分享链接过期（重新从微信分享）"
         )
     return result["data"]
 
@@ -282,12 +284,18 @@ def _clean_video_url(video_url: str) -> str:
 # ── Online API (zero-config, from z-video-downloader) ─────────────────────────
 # Credits: https://github.com/ltaoo/wx_channels_download
 
-WX_CHANNELS_PARSE_API = "https://sph.litao.workers.dev/api/fetch_video_profile"
+DEFAULT_PARSE_API_BASE = "https://sph.litao.workers.dev"
 WX_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/125.0 Safari/537.36"
 )
+
+
+def _parse_endpoint() -> str:
+    """Online parse endpoint, overridable via WX_CHANNELS_PARSE_API_BASE env."""
+    base = (os.environ.get("WX_CHANNELS_PARSE_API_BASE", "") or DEFAULT_PARSE_API_BASE).rstrip("/")
+    return f"{base}/api/fetch_video_profile"
 
 def online_api_fetch(
     url: str,
@@ -305,12 +313,19 @@ def online_api_fetch(
     session = requests.Session()
     session.headers.update({"User-Agent": WX_UA})
     try:
-        parse_resp = session.post(
-            WX_CHANNELS_PARSE_API,
-            json={"url": url},
-            headers={"Content-Type": "application/json", "User-Agent": WX_UA},
-            timeout=min(timeout, 30),
-        )
+        parse_resp = None
+        for attempt in range(2):
+            parse_resp = session.post(
+                _parse_endpoint(),
+                json={"url": url},
+                headers={"Content-Type": "application/json", "User-Agent": WX_UA},
+                timeout=min(timeout, 30),
+            )
+            # Back off once on rate limit (worker instances throttle aggressively)
+            if parse_resp.status_code == 429 and attempt == 0:
+                time.sleep(2)
+                continue
+            break
         if parse_resp.status_code != 200:
             logger.info(f"[wechat_channels] online API HTTP {parse_resp.status_code}, skipping")
             return None
@@ -639,6 +654,13 @@ def fetch(
     video_path = None
     decrypt_key = 0
     enc_limit = 131072  # default 128KB
+    download_error = ""
+
+    if not download_urls:
+        download_error = (
+            "分享链接已过期或视频已不可用：视频号链接有时效，"
+            "请重新在微信中分享该视频获取新链接后重试"
+        )
 
     for source_type, dl_url in download_urls:
         logger.info(f"[wechat_channels] Trying {source_type} URL...")
@@ -654,13 +676,16 @@ def fetch(
                     break
 
             # Otherwise use Python requests
-            video_path = _download_via_requests(dl_url, output_root, metadata)
+            video_path = _download_via_requests(dl_url, output_root, metadata, decrypt_key)
             if video_path:
                 metadata["source_type"] = source_type
                 metadata["download_method"] = "requests"
                 break
+            elif not download_error:
+                download_error = f"{source_type} URL 下载失败（无有效响应）"
 
         except Exception as e:
+            download_error = f"{source_type} 下载失败: {str(e)[:200]}"
             logger.warning(f"[wechat_channels] {source_type} download failed: {e}")
             continue
 
@@ -673,8 +698,25 @@ def fetch(
                 video_path = Path(proxy_result["video_path"])
                 metadata = proxy_result.get("metadata", metadata)
                 metadata["download_method"] = "proxy_fallback"
+                download_error = ""
         except Exception as e:
+            download_error = download_error or f"proxy fallback 失败: {str(e)[:150]}"
             logger.warning(f"[wechat_channels] Proxy mode fallback also failed: {e}")
+
+    result = {
+        "platform": PLATFORM,
+        "item_id": wx_export_id,
+        "author": author,
+        "title": desc,
+        "output_dir": str(output_root),
+        "metadata": metadata,
+    }
+
+    if not video_path:
+        # 失败时不落盘 metadata/空 caption；把分类后的错误带回给上层报告
+        metadata["download_error"] = download_error
+        result["error"] = download_error
+        return result
 
     # Write metadata
     metadata_path = output_root / "metadata.json"
@@ -686,21 +728,12 @@ def fetch(
     with open(caption_path, "w", encoding="utf-8") as f:
         f.write(desc or "")
 
-    result = {
-        "platform": PLATFORM,
-        "item_id": wx_export_id,
-        "author": author,
-        "title": desc,
-        "output_dir": str(output_root),
-        "metadata_path": str(metadata_path),
-        "caption_path": str(caption_path),
-        "metadata": metadata,
-    }
+    result["metadata_path"] = str(metadata_path)
+    result["caption_path"] = str(caption_path)
 
-    if video_path:
-        result["video_path"] = str(video_path)
-        result["duration"] = metadata.get("duration", 0)
-        result["resolution"] = metadata.get("resolution", "")
+    result["video_path"] = str(video_path)
+    result["duration"] = metadata.get("duration", 0)
+    result["resolution"] = metadata.get("resolution", "")
 
     return result
 
@@ -769,8 +802,13 @@ def _download_via_requests(
     video_url: str,
     output_root: Path,
     metadata: dict,
+    decrypt_key: int = 0,
 ) -> Path | None:
-    """Download video using Python requests (simple single-threaded)."""
+    """Download video using Python requests (simple single-threaded).
+
+    CDN responses to encrypted variants carry `x-enc-file-key` / `x-enc-len`
+    headers; the file is decrypted in place after download.
+    """
     filename = _make_filename(metadata.get("title", "video"), ".mp4")
     output_path = output_root / filename
 
@@ -789,6 +827,11 @@ def _download_via_requests(
         )
         resp.raise_for_status()
 
+        if not decrypt_key:
+            decrypt_key, enc_len = _read_enc_headers(resp.headers)
+        else:
+            enc_len = 131072
+
         total = int(resp.headers.get("Content-Length", 0))
         downloaded = 0
         with open(output_path, "wb") as f:
@@ -798,6 +841,8 @@ def _download_via_requests(
                     downloaded += len(chunk)
 
         if output_path.exists() and output_path.stat().st_size > 0:
+            if decrypt_key:
+                _decrypt_file(output_path, decrypt_key, enc_len)
             logger.info(
                 f"[wechat_channels] Download via requests OK: {output_path} "
                 f"({downloaded}/{total} bytes)"
@@ -810,6 +855,44 @@ def _download_via_requests(
             output_path.unlink()
 
     return None
+
+
+def _read_enc_headers(headers) -> tuple[int, int]:
+    """Extract ISAAC64 decrypt key and encrypted-length from CDN response headers."""
+    key = 0
+    enc_len = 131072
+    for name in ("x-enc-file-key", "x-enc-key", "x-encfilekey"):
+        value = headers.get(name)
+        if value:
+            try:
+                key = int(value)
+            except (TypeError, ValueError):
+                key = 0
+            break
+    value = headers.get("x-enc-len")
+    if value:
+        try:
+            enc_len = int(value)
+        except (TypeError, ValueError):
+            enc_len = 131072
+    return key, enc_len
+
+
+def _decrypt_file(video_path: Path, key: int, enc_len: int = 131072) -> None:
+    """Decrypt the ISAAC64-encrypted prefix of a CDN video file in place (atomic)."""
+    if not key:
+        return
+    data = video_path.read_bytes()
+    if not data:
+        return
+    # Safety: if the file already looks like a plain MP4 header, don't double-decrypt.
+    if len(data) >= 8 and data[4:8] == b"ftyp":
+        logger.info(f"[wechat_channels] {video_path.name} already plaintext, skip decrypt")
+        return
+    tmp = video_path.with_name(video_path.name + ".dec")
+    tmp.write_bytes(decrypt_video_data(data, enc_len, key))
+    tmp.replace(video_path)
+    logger.info(f"[wechat_channels] Decrypted {video_path.name} (key={key}, enc_len={enc_len})")
 
 
 # ── Go Binary Discovery ──────────────────────────────────────────────────────
